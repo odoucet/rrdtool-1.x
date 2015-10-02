@@ -437,37 +437,6 @@ int im_free(
     }
     free(im->gdes);
 
-    for (i = 0; i < DIM(text_prop);i++){
-        pango_font_description_free(im->text_prop[i].font_desc);
-        im->text_prop[i].font_desc = NULL;
-    }
-
-    if (im->font_options)
-        cairo_font_options_destroy(im->font_options);
-
-    if (im->surface)
-        cairo_surface_destroy(im->surface);
-
-    if (im->cr) {
-        status = cairo_status(im->cr);
-        cairo_destroy(im->cr);
-    }
-
-    if (status)
-        fprintf(stderr, "OOPS: Cairo has issues it can't even die: %s\n",
-                cairo_status_to_string(status));
-
-
-    if (im->rendered_image) {
-        free(im->rendered_image);
-    }
-
-    mutex_lock(im->fontmap_mutex);
-    if (im->layout) {
-        g_object_unref(im->layout);
-    }
-    mutex_unlock(im->fontmap_mutex);
-
 	if (im->ylegend)
 		free(im->ylegend);
 	if (im->title)
@@ -482,6 +451,39 @@ int im_free(
 		free(im->second_axis_format);
 	if (im->primary_axis_format)
 		free(im->primary_axis_format);
+
+    if (!im->xport_mode){
+        for (i = 0; i < DIM(text_prop);i++){
+            pango_font_description_free(im->text_prop[i].font_desc);
+            im->text_prop[i].font_desc = NULL;
+        }
+
+        if (im->font_options)
+            cairo_font_options_destroy(im->font_options);
+
+        if (im->surface)
+            cairo_surface_destroy(im->surface);
+
+        if (im->cr) {
+            status = cairo_status(im->cr);
+            cairo_destroy(im->cr);
+        }
+
+        if (status)
+            fprintf(stderr, "OOPS: Cairo has issues it can't even die: %s\n",
+                    cairo_status_to_string(status));
+
+
+        if (im->rendered_image) {
+            free(im->rendered_image);
+        }
+
+        mutex_lock(im->fontmap_mutex);
+        if (im->layout) {
+            g_object_unref(im->layout);
+        }
+        mutex_unlock(im->fontmap_mutex);
+    }
 
     return 0;
 }
@@ -4562,7 +4564,7 @@ rrd_info_t *rrd_graph_v(
 {
     image_desc_t im;
     rrd_info_t *grinfo;
-    rrd_graph_init(&im);
+    rrd_graph_init(&im,0);
     /* a dummy surface so that we can measure text sizes for placements */
     rrd_graph_options(argc, argv, &im);
     if (rrd_test_error()) {
@@ -4663,8 +4665,7 @@ rrd_set_font_desc (
 }
 
 void rrd_graph_init(
-    image_desc_t
-    *im)
+    image_desc_t *im, int xport_mode)
 {
     unsigned int i;
     char     *deffont = getenv("RRD_DEFAULT_FONT");
@@ -4689,7 +4690,6 @@ void rrd_graph_init(
     im->draw_3d_border = 2;
     im->dynamic_labels = 0;
     im->extra_flags = 0;
-    im->font_options = cairo_font_options_create();
     im->forceleftspace = 0;
     im->gdes_c = 0;
     im->gdes = NULL;
@@ -4752,47 +4752,51 @@ void rrd_graph_init(
     im->ysize = 100;
     im->zoom = 1;
 
-    im->surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 10, 10);
-    im->cr = cairo_create(im->surface);
-    im->fontmap_mutex = &fontmap_mutex;
-
-    for (i = 0; i < DIM(text_prop); i++) {
-        im->text_prop[i].size = -1;
-        im->text_prop[i].font_desc = NULL;
-        rrd_set_font_desc(im,i, deffont ? deffont : text_prop[i].font,text_prop[i].size);
-    }
-
-    mutex_lock(im->fontmap_mutex);
-
-    if (fontmap == NULL){
-        fontmap = pango_cairo_font_map_new();
-    }
-
-#ifdef HAVE_PANGO_FONT_MAP_CREATE_CONTEXT
-    context =  pango_font_map_create_context((PangoFontMap*)fontmap);
-#else
-    context =  pango_cairo_font_map_create_context((PangoCairoFontMap*)fontmap);
-#endif
-    pango_cairo_context_set_resolution(context, 100);
-
-    pango_cairo_update_context(im->cr,context);
-
-    im->layout = pango_layout_new(context);
-    g_object_unref (context);
-
-//  im->layout = pango_cairo_create_layout(im->cr);
-
-
-    cairo_font_options_set_hint_style
-        (im->font_options, CAIRO_HINT_STYLE_FULL);
-    cairo_font_options_set_hint_metrics
-        (im->font_options, CAIRO_HINT_METRICS_ON);
-    cairo_font_options_set_antialias(im->font_options, CAIRO_ANTIALIAS_GRAY);
-
-    mutex_unlock(im->fontmap_mutex);
-
     for (i = 0; i < DIM(graph_col); i++)
         im->graph_col[i] = graph_col[i];
+
+    im->xport_mode = xport_mode ?  1 : 0;
+    if (!xport_mode){
+        im->font_options = cairo_font_options_create();
+        im->surface = cairo_image_surface_create(CAIRO_FORMAT_ARGB32, 10, 10);
+        im->cr = cairo_create(im->surface);
+        im->fontmap_mutex = &fontmap_mutex;
+
+        for (i = 0; i < DIM(text_prop); i++) {
+            im->text_prop[i].size = -1;
+            im->text_prop[i].font_desc = NULL;
+            rrd_set_font_desc(im,i, deffont ? deffont : text_prop[i].font,text_prop[i].size);
+        }
+
+        mutex_lock(im->fontmap_mutex);
+
+        if (fontmap == NULL){
+            fontmap = pango_cairo_font_map_new();
+        }
+
+#ifdef HAVE_PANGO_FONT_MAP_CREATE_CONTEXT
+        context =  pango_font_map_create_context((PangoFontMap*)fontmap);
+#else
+        context =  pango_cairo_font_map_create_context((PangoCairoFontMap*)fontmap);
+#endif
+        pango_cairo_context_set_resolution(context, 100);
+
+        pango_cairo_update_context(im->cr,context);
+
+        im->layout = pango_layout_new(context);
+        g_object_unref (context);
+
+    //  im->layout = pango_cairo_create_layout(im->cr);
+
+
+        cairo_font_options_set_hint_style
+            (im->font_options, CAIRO_HINT_STYLE_FULL);
+        cairo_font_options_set_hint_metrics
+            (im->font_options, CAIRO_HINT_METRICS_ON);
+        cairo_font_options_set_antialias(im->font_options, CAIRO_ANTIALIAS_GRAY);
+
+        mutex_unlock(im->fontmap_mutex);
+    }
 
 
 }

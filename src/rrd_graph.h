@@ -275,6 +275,7 @@ typedef struct image_desc_t {
     char      *watermark;   /* watermark for graph */
     int       draw_x_grid;  /* no x-grid at all */
     int       draw_y_grid;  /* no y-grid at all */
+    int       xport_mode;   /* no need to initialize graphics ... */
     unsigned int draw_3d_border; /* size of border in pixels, 0 for off */
     unsigned int dynamic_labels; /* pick the label shape according to the line drawn */
     double    grid_dash_on, grid_dash_off;
@@ -446,7 +447,7 @@ int       scan_for_col(
     int,
     char *const);
 void      rrd_graph_init(
-    image_desc_t *);
+    image_desc_t *, int);
 
 void      time_clean(
     char *result,
@@ -590,5 +591,3 @@ void      grinfo_push(
     image_desc_t *im,
     char *key,
     rrd_info_type_t type,    rrd_infoval_t value);
-
-

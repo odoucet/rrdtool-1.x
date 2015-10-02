@@ -89,7 +89,7 @@ int rrd_xport(
         {0}
     };
 
-    rrd_graph_init(&im);
+    rrd_graph_init(&im,1);
 
     rrd_parsetime("end-24h", &start_tv);
     rrd_parsetime("now", &end_tv);
@@ -97,7 +97,7 @@ int rrd_xport(
     int enumds=0;
     int json=0;
     int showtime=0;
-    
+
     int opt;
     while ((opt = optparse_long(&options,longopts,NULL)) != -1){
 
